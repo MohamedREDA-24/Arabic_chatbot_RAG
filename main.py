@@ -5,8 +5,9 @@ import PyPDF2
 import re
 import google.generativeai as genai
 import os
-from IPython.display import display, Markdown
-
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +16,19 @@ api_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 model_name = "models/gemini-1.5-pro-latest"
 gemini = genai.GenerativeModel(model_name)
+
+app = FastAPI(
+    title="Arabic Legal Chatbot API",
+    description="A RAG-based Arabic legal chatbot using Gemini and FAISS",
+    version="1.0.0"
+)
+
+class QueryRequest(BaseModel):
+    query: str
+
+class QueryResponse(BaseModel):
+    answer: str
+    sources: List[dict]
 
 def normalize_arabic(text):
     text = re.sub(r'[أإآ]', 'ا', text)
@@ -47,6 +61,7 @@ def read_pdf(file_path):
 
 #Chunking
 def semantic_chunking(pages_text, similarity_threshold=0.72):
+    """تقسيم النص إلى أجزاء مترابطة دلاليًا"""
     chunks = []
 
     for text in pages_text:
@@ -126,42 +141,45 @@ def generate_answer(question, context):
         return response.text.strip()
     except Exception as e:
         return f"خطأ في توليد الإجابة: {str(e)}"
-def main():
+
+# Initialize the index and chunks globally
+pdf_path = "document.pdf"
+pages = read_pdf(pdf_path)
+chunks = semantic_chunking(pages)
+embeddings = get_embeddings(chunks)
+index = create_faiss_index(embeddings)
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to the Arabic Legal Chatbot API",
+        "docs": "/docs",
+        "status": "operational"
+    }
+
+@app.post("/query", response_model=QueryResponse)
+async def process_query(request: QueryRequest):
     try:
-        pdf_path = "document.pdf"
-        pages = read_pdf(pdf_path)
-        chunks = semantic_chunking(pages)
+        results = semantic_search(request.query, index, chunks)
+        if not results:
+            raise HTTPException(status_code=404, detail="No results found")
 
-        if not chunks:
-            raise ValueError("فشل في تقسيم النص إلى أجزاء")
+        context = "\n".join([c for c, _ in results])
+        answer = generate_answer(request.query, context)
 
-        embeddings = get_embeddings(chunks)
-        if embeddings is None:
-            raise RuntimeError("فشل في توليد التضمينات")
+        sources = [
+            {
+                "content": chunk[:250] + ("..." if len(chunk) > 250 else ""),
+                "similarity": float(1/(1+score))
+            }
+            for chunk, score in results
+        ]
 
-        index = create_faiss_index(embeddings)
-
-        while True:
-            query = input("\nأدخل سؤالك (أو اكتب 'خروج' للإنهاء): ").strip()
-            if query.lower() in ['خروج', 'exit']:
-                break
-
-            results = semantic_search(query, index, chunks)
-            if not results:
-                print("⚠️ لم يتم العثور على نتائج")
-                continue
-
-            context = "\n".join([c for c, _ in results])
-            answer = generate_answer(query, context)
-
-            print(f"\nالإجابة:\n{answer}")
-            print("\nالمصادر المستخدمة:")
-            for i, (chunk, score) in enumerate(results):
-                print(f"\nالمصدر {i+1} (التشابه: {1/(1+score):.2%}):")
-                print(chunk[:250] + ("..." if len(chunk) > 250 else ""))
+        return QueryResponse(answer=answer, sources=sources)
 
     except Exception as e:
-        print(f"حدث خطأ: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    main()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
