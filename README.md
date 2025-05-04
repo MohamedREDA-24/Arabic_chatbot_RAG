@@ -20,7 +20,7 @@ A RAG-based Arabic chatbot that uses Gemini AI and FAISS for semantic search to 
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
+git clone https://github.com/MohamedREDA-24/Arabic_chatbot_RAG.git
 cd Arabic_chatbot_RAG
 ```
 
