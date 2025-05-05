@@ -116,7 +116,6 @@ def create_faiss_index(embeddings):
     return index
 
 def semantic_search(query, index, chunks, top_k=3):
-    """البحث عن الأجزاء الأكثر صلة"""
     query_emb = get_embeddings([query])
     if query_emb is None:
         return []
@@ -126,8 +125,7 @@ def semantic_search(query, index, chunks, top_k=3):
 
 #LLM Integration
 def generate_answer(question, context):
-    """توليد الإجابة باستخدام Gemini"""
-    prompt = f"""كن مساعدًا قانونيًا خبيرًا. اتبع القواعد:
+    prompt = f"""كن مساعدًا خبيرًا. اتبع القواعد:
     1. أجب بالعربية الفصحى فقط
     2. استخدم المعلومات التالية فقط:
     {context}
