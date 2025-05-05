@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
 from datetime import datetime
-
+from Agent import agent_executor
 load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
@@ -256,6 +256,25 @@ async def submit_feedback(feedback: FeedbackRequest):
     try:
         save_feedback(feedback)
         return {"status": "success", "message": "Feedback received successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+#agent 
+@app.post("/query", response_model=QueryResponse)
+async def process_query(request: QueryRequest):
+    try:
+        state = {"question": request.query}
+        final_state = agent_executor.invoke(state)
+
+        return QueryResponse(
+            answer=final_state["answer"],
+            sources=[],  # Optional: add chunk sources from search if needed
+            follow_up=final_state.get("follow_up")
+        )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

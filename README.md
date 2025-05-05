@@ -56,6 +56,7 @@ The UI will open in your default web browser at `http://localhost:8501`
 
 3. Enter your questions in Arabic and get instant answers!
 
+
 ## Project Structure
 
 - `main.py`: FastAPI backend with RAG implementation
