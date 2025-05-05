@@ -55,14 +55,47 @@ streamlit run streamlit_app.py
 The UI will open in your default web browser at `http://localhost:8501`
 
 3. Enter your questions in Arabic and get instant answers!
+### Agent Flow:
+
+`load_context → analyze_feedback → generate_answer → generate_follow_up → END`
+
+### Main File:
+
+* *   `Agent.py` — Contains the LangGraph pipeline and node logic
+
+### Usage:
+
+The FastAPI `/query` endpoint invokes the agent to produce enhanced answers with optional follow-up prompts.
+
+* * *
+
+## 📚 RAG Module (`RAG_Module.py`)
+
+All core RAG functions (semantic chunking, embedding generation, FAISS indexing, and document search) are contained in:
+
+* *   `RAG_Module.py`
+*     
+
+This module is imported and used by both the backend and the agent logic to fetch context and index documents.
+
+* * *
+
+## 🗂️ Project Structure
+
+* *   `main.py` – FastAPI backend with LangGraph integration
+*     
+* *   `Agent.py` – LangGraph-based agent logic
+*     
+* *   `RAG_Module.py` – Core RAG processing functions
+*     
+* *   `streamlit_app.py` – Streamlit UI
+*     
+* *   `requirements.txt` – Dependencies
+*     
+* *   `document.pdf` – Sample legal documen
+*
 
 
-## Project Structure
-
-- `main.py`: FastAPI backend with RAG implementation
-- `streamlit_app.py`: Streamlit frontend interface
-- `requirements.txt`: Project dependencies
-- `document.pdf`: Sample document for testing
 
 ## API Endpoints
 
