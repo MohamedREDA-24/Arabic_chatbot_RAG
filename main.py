@@ -4,10 +4,12 @@ import PyPDF2
 import re
 import google.generativeai as genai
 import os
+import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -28,6 +30,32 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     sources: List[dict]
+
+class FeedbackRequest(BaseModel):
+    query: str
+    answer: str
+    feedback: bool  # True for thumbs up, False for thumbs down
+    comment: Optional[str] = None
+
+# Create feedback storage directory if it doesn't exist
+FEEDBACK_DIR = "feedback_data"
+if not os.path.exists(FEEDBACK_DIR):
+    os.makedirs(FEEDBACK_DIR)
+
+def save_feedback(feedback: FeedbackRequest):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    feedback_file = os.path.join(FEEDBACK_DIR, f"feedback_{timestamp}.json")
+    
+    feedback_data = {
+        "query": feedback.query,
+        "answer": feedback.answer,
+        "feedback": feedback.feedback,
+        "comment": feedback.comment,
+        "timestamp": timestamp
+    }
+    
+    with open(feedback_file, "w", encoding="utf-8") as f:
+        json.dump(feedback_data, f, ensure_ascii=False, indent=2)
 
 def normalize_arabic(text):
     text = re.sub(r'[أإآ]', 'ا', text)
@@ -60,7 +88,6 @@ def read_pdf(file_path):
 
 #Chunking
 def semantic_chunking(pages_text, similarity_threshold=0.72):
-    """تقسيم النص إلى أجزاء مترابطة دلاليًا"""
     chunks = []
 
     for text in pages_text:
@@ -118,7 +145,6 @@ def semantic_search(query, index, chunks, top_k=3):
     query_emb = get_embeddings([query])
     if query_emb is None:
         return []
-
     distances, indices = index.search(query_emb, top_k)
     return [(chunks[i], float(distances[0][j])) for j, i in enumerate(indices[0])]
 
@@ -135,6 +161,54 @@ def generate_answer(question, context):
 
     try:
         response = gemini.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"خطأ في توليد الإجابة: {str(e)}"
+
+# Feedback analysis and prompt improvement
+def analyze_feedback():
+    if not os.path.exists(FEEDBACK_DIR):
+        return None
+    
+    feedback_files = [f for f in os.listdir(FEEDBACK_DIR) if f.endswith('.json')]
+    negative_feedback = []
+    
+    for file in feedback_files:
+        with open(os.path.join(FEEDBACK_DIR, file), 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if not data['feedback']:  
+                negative_feedback.append(data)
+    
+    return negative_feedback
+
+def improve_prompt(question: str, context: str) -> str:
+    negative_feedback = analyze_feedback()
+    if not negative_feedback:
+        return generate_answer(question, context)
+    
+    # Create a learning prompt based on negative feedback
+    learning_context = "\n".join([
+        f"السؤال: {fb['query']}\nالإجابة السابقة: {fb['answer']}\nالملاحظات: {fb['comment']}"
+        for fb in negative_feedback[-5:]  # Use last 5 negative feedbacks
+    ])
+    
+    improved_prompt = f"""كن مساعدًا خبيرًا. اتبع القواعد:
+    1. أجب بالعربية الفصحى فقط
+    2. استخدم المعلومات التالية فقط:
+    {context}
+    3. إذا لا يوجد معلومات كافية قل "لا معلومات متاحة"
+    4. تعلم من الأخطاء السابقة:
+    {learning_context}
+    5. تأكد من أن إجابتك:
+       - دقيقة ومباشرة
+       - تستند إلى المعلومات المتاحة فقط
+       - تتجنب الأخطاء السابقة المذكورة أعلاه
+
+    السؤال: {question}
+    الإجابة:"""
+
+    try:
+        response = gemini.generate_content(improved_prompt)
         return response.text.strip()
     except Exception as e:
         return f"خطأ في توليد الإجابة: {str(e)}"
@@ -162,7 +236,7 @@ async def process_query(request: QueryRequest):
             raise HTTPException(status_code=404, detail="No results found")
 
         context = "\n".join([c for c, _ in results])
-        answer = generate_answer(request.query, context)
+        answer = improve_prompt(request.query, context)  # Use improved prompt
 
         sources = [
             {
@@ -174,6 +248,14 @@ async def process_query(request: QueryRequest):
 
         return QueryResponse(answer=answer, sources=sources)
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/feedback")
+async def submit_feedback(feedback: FeedbackRequest):
+    try:
+        save_feedback(feedback)
+        return {"status": "success", "message": "Feedback received successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

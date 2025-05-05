@@ -82,4 +82,48 @@ for chat in reversed(st.session_state.chat_history):
             <div class="question">السؤال: {chat['query']}</div>
             <div class="answer">الإجابة: {chat['answer']}</div>
         </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
+    
+    # Add feedback buttons
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("👍", key=f"thumbs_up_{chat['query']}"):
+            try:
+                feedback_data = {
+                    "query": chat['query'],
+                    "answer": chat['answer'],
+                    "feedback": True,
+                    "comment": None
+                }
+                response = requests.post(
+                    "http://localhost:8000/feedback",
+                    json=feedback_data
+                )
+                if response.status_code == 200:
+                    st.success("شكراً على تقييمك الإيجابي!")
+                else:
+                    st.error("حدث خطأ في إرسال التقييم")
+            except Exception as e:
+                st.error("حدث خطأ في الاتصال")
+    
+    with col2:
+        if st.button("👎", key=f"thumbs_down_{chat['query']}"):
+            comment = st.text_input("يرجى كتابة ملاحظاتك لتحسين الإجابة:", key=f"comment_{chat['query']}")
+            if comment:
+                try:
+                    feedback_data = {
+                        "query": chat['query'],
+                        "answer": chat['answer'],
+                        "feedback": False,
+                        "comment": comment
+                    }
+                    response = requests.post(
+                        "http://localhost:8000/feedback",
+                        json=feedback_data
+                    )
+                    if response.status_code == 200:
+                        st.success("شكراً على ملاحظاتك! سنعمل على تحسين الإجابة.")
+                    else:
+                        st.error("حدث خطأ في إرسال التقييم")
+                except Exception as e:
+                    st.error("حدث خطأ في الاتصال") 
