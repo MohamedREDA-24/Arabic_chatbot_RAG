@@ -2,6 +2,9 @@ import streamlit as st
 import requests
 import json
 from typing import List, Dict
+import speech_recognition as sr
+import tempfile
+import os
 
 # Configure the page
 st.set_page_config(
@@ -37,20 +40,58 @@ st.markdown("""
         padding-right: 1rem;
         border-right: 3px solid #27ae60;
     }
+    .mic-button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+    }
+    .mic-button:hover {
+        background-color: #45a049;
+    }
     </style>
 """, unsafe_allow_html=True)
+
+def recognize_arabic_speech():
+    """Recognize Arabic speech from microphone input"""
+    recognizer = sr.Recognizer()
+    
+    with sr.Microphone() as source:
+        st.info("جاري الاستماع...")
+        audio = recognizer.listen(source)
+    
+    try:
+        # Use Google's speech recognition with Arabic language
+        text = recognizer.recognize_google(audio, language='ar-SA')
+        return text
+    except sr.UnknownValueError:
+        st.error("لم يتم التعرف على الكلام")
+        return None
+    except sr.RequestError as e:
+        st.error(f"حدث خطأ في خدمة التعرف على الكلام: {str(e)}")
+        return None
 
 # Title and description
 st.title("المساعد العربي")
 st.markdown("""
-    مرحباً بك في المساعد العربي. يمكنك طرح أسئلتك وسيقوم النظام بالبحث في الوثائق وتقديم إجابات دقيقة.
+    مرحباً بك في المساعد العربي. يمكنك طرح أسئلتك كتابةً أو باستخدام الميكروفون.
 """)
 
 # Initialize session state for chat history
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Main chat interface
+# Voice input button
+if st.button("🎤 اضغط للتحدث", key="mic_button"):
+    query = recognize_arabic_speech()
+    if query:
+        st.session_state.query_input = query
+
+# Text input with voice input support
 query = st.text_input("اكتب سؤالك هنا:", key="query_input")
 
 if st.button("إرسال", key="send_button"):
