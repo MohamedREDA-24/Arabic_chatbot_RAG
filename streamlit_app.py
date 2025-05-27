@@ -13,6 +13,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# API URL configuration
+API_URL = os.getenv("API_URL", "http://localhost:8000")
+
 # Custom CSS for RTL support and styling
 st.markdown("""
     <style>
@@ -99,7 +102,7 @@ if st.button("إرسال", key="send_button"):
         try:
             # Call the FastAPI endpoint
             response = requests.post(
-                "http://localhost:8000/query",
+                f"{API_URL}/query",
                 json={"query": query}
             )
             
@@ -137,7 +140,7 @@ for chat in reversed(st.session_state.chat_history):
                     "comment": None
                 }
                 response = requests.post(
-                    "http://localhost:8000/feedback",
+                    f"{API_URL}/feedback",
                     json=feedback_data
                 )
                 if response.status_code == 200:
@@ -159,7 +162,7 @@ for chat in reversed(st.session_state.chat_history):
                         "comment": comment
                     }
                     response = requests.post(
-                        "http://localhost:8000/feedback",
+                        f"{API_URL}/feedback",
                         json=feedback_data
                     )
                     if response.status_code == 200:

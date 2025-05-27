@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
 from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -22,6 +23,20 @@ app = FastAPI(
     title="Arabic Legal Chatbot API",
     description="A RAG-based Arabic legal chatbot using Gemini and FAISS",
     version="1.0.0"
+)
+
+# Add CORS middleware
+origins = [
+    "http://localhost:3000",  # Allow your React frontend origin
+    # You can add more origins here if needed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class QueryRequest(BaseModel):
@@ -176,7 +191,7 @@ def analyze_feedback():
     for file in feedback_files:
         with open(os.path.join(FEEDBACK_DIR, file), 'r', encoding='utf-8') as f:
             data = json.load(f)
-            if not data['feedback']:  
+            if data['feedback']==False:  
                 negative_feedback.append(data)
     
     return negative_feedback
